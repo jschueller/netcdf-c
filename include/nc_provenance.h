@@ -95,9 +95,6 @@ extern int NC4_provenance_init(void);
 /* Finalize the provenance global state */
 extern int NC4_provenance_finalize(void);
 
-/* Get the NC4_Provenance for a file, parse properties if not already; result is read only */
-extern int NC4_get_provenance(struct NC_FILE_INFO* file, const NC4_Provenance**);
-
 /* Read and store the provenance from an existing file */
 extern int NC4_read_provenance(struct NC_FILE_INFO* file);
 
@@ -106,5 +103,12 @@ extern int NC4_new_provenance(struct NC_FILE_INFO* file);
 
 /* Clean up the provenance info in a file */
 extern int NC4_clear_provenance(NC4_Provenance* prov);
+
+/*Currently, no piece of code attempts to extract information
+  about a file's provenance info, so this function
+  is currently never invoked
+*/
+/* Get the NC4_Provenance for a file, parse properties if not already; result is read only */
+extern int NC4_get_provenance(struct NC_FILE_INFO* file, const NC4_Provenance**);
 
 #endif /* _NCPROVENANCE_ */

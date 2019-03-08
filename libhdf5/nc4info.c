@@ -14,6 +14,11 @@
 #include "nclist.h"
 #include "ncbytes.h"
 
+/* Provide a hack to suppress the writing of _NCProperties attribute.
+   This is for creating a file without _NCProperties for testing purposes.
+*/
+#undef SUPPRESSNCPROPS
+
 /* Various Constants */
 #define NCPROPS_MAX_NAME 1024 /* max key name size */
 #define NCPROPS_MAX_VALUE 1024 /* max value size */
@@ -112,7 +117,7 @@ NC4_provenance_init(void)
     other = NULL;
 
     /* Convert to a string and cache it */
-    if((stat == build_propstring(NCPROPS_VERSION,globalprovenance.properties,&cachedpropstring)))
+    if((stat = build_propstring(NCPROPS_VERSION,globalprovenance.properties,&cachedpropstring)))
 	goto done;
     globalprovenance.ncproperty = cachedpropstring;
     cachedpropstring = NULL;
@@ -170,6 +175,9 @@ NC4_new_provenance(NC_FILE_INFO_T* file)
 
     provenance = &file->provenance;
     memset(provenance,0,sizeof(NC4_Provenance)); /* make sure */
+
+    /* Set the version */
+    provenance->version = globalprovenance.version;
 
     /* Set the superblock number */
     if((ncstat = NC4_hdf5get_superblock(file,&superblock))) goto done;
@@ -304,6 +312,9 @@ done:
 int
 NC4_write_ncproperties(NC_FILE_INFO_T* h5)
 {
+#ifdef SUPPRESSNCPROPERTY
+    return NC_NOERR;
+#else /*!SUPPRESSNCPROPERTY*/
     int retval = NC_NOERR;
     hid_t hdf5grpid = -1;
     hid_t attid = -1;
@@ -376,6 +387,7 @@ done:
         break;
     }
     return retval;
+#endif /*!SUPPRESSNCPROPERTY*/
 }
 
 int
