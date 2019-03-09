@@ -12,11 +12,12 @@
  *
  *
  * For netcdf4 files, capture state information about the following:
- * 1. Global: netcdf library version
- * 2. Global: hdf5 library version
- * 3. Per file: superblock version
- * 4. Per File: was it created by netcdf-4?
- * 5. Per file: _NCProperties attribute
+ * - Global: netcdf library version
+ * - Global: hdf5 library version
+ * - Global: any parameters specified by the --with-ncproperties option for ./configure
+ * - Per file: superblock version
+ * - Per File: was it created by netcdf-4?
+ * - Per file: _NCProperties attribute
  *
  * @author Dennis Heimbigner, Ward Fisher
 */
@@ -103,12 +104,5 @@ extern int NC4_new_provenance(struct NC_FILE_INFO* file);
 
 /* Clean up the provenance info in a file */
 extern int NC4_clear_provenance(NC4_Provenance* prov);
-
-/*Currently, no piece of code attempts to extract information
-  about a file's provenance info, so this function
-  is currently never invoked
-*/
-/* Get the NC4_Provenance for a file, parse properties if not already; result is read only */
-extern int NC4_get_provenance(struct NC_FILE_INFO* file, const NC4_Provenance**);
 
 #endif /* _NCPROVENANCE_ */

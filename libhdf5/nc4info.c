@@ -36,12 +36,11 @@ static int globalpropinitialized = 0;
 static NC4_Provenance globalprovenance;
 
 /* Forward */
-static char* locate(char* p, char tag);
 static int properties_getversion(const char* propstring, int* versionp);
 static int properties_parse(const char* text0, NClist* pairs);
-static void escapify(NCbytes* buffer, const char* s);
-static int parse_provenance(NC4_Provenance*);
 static int build_propstring(int version, NClist* list, char** spropp);
+static void escapify(NCbytes* buffer, const char* s);
+static char* locate(char* p, char tag);
 
 /**
  * @internal Initialize default provenance info
@@ -390,24 +389,6 @@ done:
 #endif /*!SUPPRESSNCPROPERTY*/
 }
 
-int
-NC4_get_provenance(NC_FILE_INFO_T* file, const NC4_Provenance** provp)
-{
-    int ncstat = NC_NOERR;
-    NC4_Provenance* prov = &file->provenance;
-
-    /* Parse the ncproperty value */	
-    if(prov->version > 0 && prov->properties == NULL) {
-	if((ncstat = parse_provenance(prov)))
-	    goto done;
-    }
-
-    if(provp != NULL) *provp = prov;
-
-done:
-    return ncstat;
-}
-
 /**************************************************/
 /* Utilities */
 
@@ -537,76 +518,6 @@ escapify(NCbytes* buffer, const char* s)
 }
 
 /**
- * @internal
- *
- * Construct the parsed provenance information 
- *
- * @param prov Pointer to provenance object
- *
- * @return ::NC_NOERR No error.
- * @return ::NC_ENOMEM
- * @return ::NC_EINVAL
- * @author Dennis Heimbigner
- */
-static int
-parse_provenance(NC4_Provenance* prov)
-{
-    int ncstat = NC_NOERR;
-    char *name = NULL;
-    char *value = NULL;
-    int version = 0;
-    NClist* list = NULL;
-
-    LOG((5, "%s: prov 0x%x", __func__, prov));
-
-    if(prov->ncproperty == NULL || strlen(prov->ncproperty) < strlen("version="))
-        {ncstat = NC_EINVAL; goto done;}
-    if((list = nclistnew()) == NULL)
-        {ncstat = NC_ENOMEM; goto done;}
-
-    /* Do we understand the version? */
-    if(prov->version > 0 && prov->version <= NCPROPS_VERSION) {/* recognized version */
-        if((ncstat=properties_parse(prov->ncproperty,list)))
-	    goto done;
-        /* Remove version pair from properties list*/
-        if(nclistlength(list) < 2)
-            {ncstat = NC_EINVAL; goto done;} /* bad _NCProperties attribute */
-        /* Throw away the purported version=... */
-        nclistremove(list,0); /* version key */
-        nclistremove(list,0); /* version value */
-
-        /* Now, rebuild to the latest version */
-	switch (version) {
-	default: break; /* do nothing */
-	case 1: {
-            int i;
-            for(i=0;i<nclistlength(list);i+=2) {
-                char* newname = NULL;
-                name = nclistget(list,i);
-                if(name == NULL) continue; /* ignore */
-                if(strcmp(name,NCPNCLIB1) == 0)
-                    newname = NCPNCLIB2; /* change name */
-                else if(strcmp(name,NCPHDF5LIB1) == 0)
-                    newname = NCPHDF5LIB2;
-                else continue; /* ignore */
-                /* Do any rename */
-                nclistset(list,i,strdup(newname));
-                if(name) {free(name); name = NULL;}
-            }
-        } break;
-	} /*switch*/
-    }
-    prov->properties = list;
-    list = NULL;
-
-done:
-    nclistfreeall(list);
-    if(name != NULL) free(name);
-    if(value != NULL) free(value);
-    return ncstat;
-}
-
-/**
  * @internal Build _NCProperties attribute value.
  *
  * Convert a NCPROPINFO instance to a single string.
@@ -689,6 +600,76 @@ NC4_clear_provenance(NC4_Provenance* prov)
 
 #if 0
 /* Unused functions */
+
+/**
+ * @internal
+ *
+ * Construct the parsed provenance information 
+ *
+ * @param prov Pointer to provenance object
+ *
+ * @return ::NC_NOERR No error.
+ * @return ::NC_ENOMEM
+ * @return ::NC_EINVAL
+ * @author Dennis Heimbigner
+ */
+static int
+parse_provenance(NC4_Provenance* prov)
+{
+    int ncstat = NC_NOERR;
+    char *name = NULL;
+    char *value = NULL;
+    int version = 0;
+    NClist* list = NULL;
+
+    LOG((5, "%s: prov 0x%x", __func__, prov));
+
+    if(prov->ncproperty == NULL || strlen(prov->ncproperty) < strlen("version="))
+        {ncstat = NC_EINVAL; goto done;}
+    if((list = nclistnew()) == NULL)
+        {ncstat = NC_ENOMEM; goto done;}
+
+    /* Do we understand the version? */
+    if(prov->version > 0 && prov->version <= NCPROPS_VERSION) {/* recognized version */
+        if((ncstat=properties_parse(prov->ncproperty,list)))
+	    goto done;
+        /* Remove version pair from properties list*/
+        if(nclistlength(list) < 2)
+            {ncstat = NC_EINVAL; goto done;} /* bad _NCProperties attribute */
+        /* Throw away the purported version=... */
+        nclistremove(list,0); /* version key */
+        nclistremove(list,0); /* version value */
+
+        /* Now, rebuild to the latest version */
+	switch (version) {
+	default: break; /* do nothing */
+	case 1: {
+            int i;
+            for(i=0;i<nclistlength(list);i+=2) {
+                char* newname = NULL;
+                name = nclistget(list,i);
+                if(name == NULL) continue; /* ignore */
+                if(strcmp(name,NCPNCLIB1) == 0)
+                    newname = NCPNCLIB2; /* change name */
+                else if(strcmp(name,NCPHDF5LIB1) == 0)
+                    newname = NCPHDF5LIB2;
+                else continue; /* ignore */
+                /* Do any rename */
+                nclistset(list,i,strdup(newname));
+                if(name) {free(name); name = NULL;}
+            }
+        } break;
+	} /*switch*/
+    }
+    prov->properties = list;
+    list = NULL;
+
+done:
+    nclistfreeall(list);
+    if(name != NULL) free(name);
+    if(value != NULL) free(value);
+    return ncstat;
+}
 
 /**
  * @internal
