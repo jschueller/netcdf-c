@@ -54,8 +54,8 @@ struct NC_FILE_INFO;
 */
 
 typedef struct NC4_Provenance {
-    int version; /* 0 => not defined yet */
-    char* ncproperty; /* raw value of _NCProperties */
+    char* ncproperty; /* raw value of _NCProperties; NULL => does not exist */
+    int version; /* 0 => not parsed */
     int superblockversion;
     /* Following is filled from NCPROPS attribute or from global version */
     /* Version 1 format is:
