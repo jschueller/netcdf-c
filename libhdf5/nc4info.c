@@ -37,10 +37,12 @@ static NC4_Provenance globalprovenance;
 
 /* Forward */
 static int properties_getversion(const char* propstring, int* versionp);
-static int properties_parse(const char* text0, NClist* pairs);
 static int build_propstring(int version, NClist* list, char** spropp);
 static void escapify(NCbytes* buffer, const char* s);
+#ifdef NCPROPERTIES
+static int properties_parse(const char* text0, NClist* pairs);
 static char* locate(char* p, char tag);
+#endif
 
 /**
  * @internal Initialize default provenance info
@@ -410,24 +412,6 @@ ncprintprovenance(NC4_Provenance* info)
     }
 }
 
-/* Locate a specific character and return its pointer
-   or EOS if not found
-   take \ escapes into account */
-static char*
-locate(char* p, char tag)
-{
-    char* next;
-    int c;
-    assert(p != NULL);
-    for(next = p;(c = *next);next++) {
-        if(c == tag)
-            return next;
-        else if(c == '\\' && next[1] != '\0')
-            next++; /* skip escaped char */
-    }
-    return next; /* not found */
-}
-
 static int
 properties_getversion(const char* propstring, int* versionp)
 {
@@ -448,6 +432,7 @@ done:
     return ncstat;
 }
 
+#ifdef NCPROPERTIES
 /**
  * @internal Parse file properties.
  *
@@ -504,6 +489,25 @@ done:
     return ret;
 }
 
+/* Locate a specific character and return its pointer
+   or EOS if not found
+   take \ escapes into account */
+static char*
+locate(char* p, char tag)
+{
+    char* next;
+    int c;
+    assert(p != NULL);
+    for(next = p;(c = *next);next++) {
+        if(c == tag)
+            return next;
+        else if(c == '\\' && next[1] != '\0')
+            next++; /* skip escaped char */
+    }
+    return next; /* not found */
+}
+
+#endif /*NCPROPERTIES*/
 
 /* Utility to transfer a string to a buffer with escaping */
 static void
