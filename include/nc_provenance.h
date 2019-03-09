@@ -53,25 +53,8 @@ struct NC_FILE_INFO;
    5. Per file: _NCProperties attribute
 */
 
-/* Most of this needs to be moved to hdf5internal.h */
-
-#define NCPROPS "_NCProperties"
-#define NCPVERSION "version" /* Of the properties format */
-#define NCPHDF5LIB1 "hdf5libversion"
-#define NCPNCLIB1 "netcdflibversion"
-#define NCPHDF5LIB2 "hdf5"
-#define NCPNCLIB2 "netcdf"
-#define NCPROPS_VERSION (2)
-/* Version 2 changes this because '|' was causing bash problems */
-#define NCPROPSSEP1  '|'
-#define NCPROPSSEP2  ','
-
-/* Other hidden attributes */
-#define ISNETCDF4ATT "_IsNetcdf4"
-#define SUPERBLOCKATT "_SuperblockVersion"
-
 typedef struct NC4_Provenance {
-    int version; /* 0 => not defined */
+    int version; /* 0 => not defined yet */
     char* ncproperty; /* raw value of _NCProperties */
     int superblockversion;
     /* Following is filled from NCPROPS attribute or from global version */

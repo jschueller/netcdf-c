@@ -36,7 +36,6 @@ static int globalpropinitialized = 0;
 static NC4_Provenance globalprovenance;
 
 /* Forward */
-static int properties_getversion(const char* propstring, int* versionp);
 static int build_propstring(int version, NClist* list, char** spropp);
 static void escapify(NCbytes* buffer, const char* s);
 #ifdef NCPROPERTIES
@@ -213,7 +212,6 @@ NC4_read_provenance(NC_FILE_INFO_T* file)
     int ncstat = NC_NOERR;
     NC4_Provenance* provenance = NULL;
     int superblock = -1;
-    int version = 0;
     char* propstring = NULL;
 
     LOG((5, "%s: ncid 0x%x", __func__, file->root_grp->hdr.id));
@@ -232,11 +230,13 @@ NC4_read_provenance(NC_FILE_INFO_T* file)
     provenance->ncproperty = propstring;
     propstring = NULL;    
 
+#if 0
     /* Get only the version */
     if((ncstat=properties_getversion(propstring,&version)))
         goto done;
     /* save version, even if it is unknown */
     provenance->version = version;
+#endif
 
 done:
     nullfree(propstring);
@@ -336,7 +336,7 @@ NC4_write_ncproperties(NC_FILE_INFO_T* h5)
         goto done;
 
     /* Build the property if we have legit value */
-    if(prov->version > 0 && prov->ncproperty != NULL) {
+    if(prov->ncproperty != NULL) {
 	/* Build the HDF5 string type */
 	if ((atype = H5Tcopy(H5T_C_S1)) < 0)
 	    {retval = NC_EHDFERR; goto done;}
@@ -410,26 +410,6 @@ ncprintprovenance(NC4_Provenance* info)
         char* value = nclistget(info->properties,i+1);
         fprintf(stderr,"\t[%d] name=|%s| value=|%s|\n",i,name,value);
     }
-}
-
-static int
-properties_getversion(const char* propstring, int* versionp)
-{
-    int ncstat = NC_NOERR;
-    int version = 0;
-    /* propstring should begin with "version=dddd" */
-    if(propstring == NULL || strlen(propstring) < strlen("version=") + strlen("1"))
-        {ncstat = NC_EINVAL; goto done;} /* illegal version */	
-    if(memcmp(propstring,"version=",strlen("version=")) != 0)
-        {ncstat = NC_EINVAL; goto done;} /* illegal version */	
-    propstring += strlen("version=");
-    /* get version */
-    version = atoi(propstring);
-    if(version < 0)
-        {ncstat = NC_EINVAL; goto done;} /* illegal version */	
-    if(versionp) *versionp = version;
-done:
-    return ncstat;
 }
 
 #ifdef NCPROPERTIES
@@ -604,6 +584,26 @@ NC4_clear_provenance(NC4_Provenance* prov)
 
 #if 0
 /* Unused functions */
+
+static int
+properties_getversion(const char* propstring, int* versionp)
+{
+    int ncstat = NC_NOERR;
+    int version = 0;
+    /* propstring should begin with "version=dddd" */
+    if(propstring == NULL || strlen(propstring) < strlen("version=") + strlen("1"))
+        {ncstat = NC_EINVAL; goto done;} /* illegal version */	
+    if(memcmp(propstring,"version=",strlen("version=")) != 0)
+        {ncstat = NC_EINVAL; goto done;} /* illegal version */	
+    propstring += strlen("version=");
+    /* get version */
+    version = atoi(propstring);
+    if(version < 0)
+        {ncstat = NC_EINVAL; goto done;} /* illegal version */	
+    if(versionp) *versionp = version;
+done:
+    return ncstat;
+}
 
 /**
  * @internal
