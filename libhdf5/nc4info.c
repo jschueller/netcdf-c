@@ -35,14 +35,6 @@
 static int globalpropinitialized = 0;
 static NC4_Provenance globalprovenance;
 
-/* Forward */
-static int build_propstring(int version, NClist* list, char** spropp);
-static void escapify(NCbytes* buffer, const char* s);
-#ifdef NCPROPERTIES
-static int properties_parse(const char* text0, NClist* pairs);
-static char* locate(char* p, char tag);
-#endif
-
 /**
  * @internal Initialize default provenance info
  * This will only be used for newly created files
@@ -56,12 +48,12 @@ int
 NC4_provenance_init(void)
 {
     int stat = NC_NOERR;
-    int i;
-    NClist* other = NULL;
     char* name = NULL;
     char* value = NULL;
     unsigned major,minor,release;
-    char* cachedpropstring = NULL;
+    NCbytes* buffer = NULL; /* for constructing the global _NCProperties */
+    char printbuf[1024];
+    const char* p = NULL;
 
     if(globalpropinitialized)
         return stat;
@@ -71,67 +63,48 @@ NC4_provenance_init(void)
     /* Initialize globalpropinfo */
     memset((void*)&globalprovenance,0,sizeof(NC4_Provenance));
     globalprovenance.version = NCPROPS_VERSION;
-    if((globalprovenance.properties = nclistnew()) == NULL)
-        {stat = NC_ENOMEM; goto done;}
+
+    buffer = ncbytesnew();
 
     /* Insert primary library version as first entry */
-    if((name = strdup(NCPNCLIB2)) == NULL)
-    {stat = NC_ENOMEM; goto done;}
-    nclistpush(globalprovenance.properties,name);
-    name = NULL; /* Avoid multiple free() */
+    ncbytescat(buffer,NCPNCLIB2);
+    ncbytescat(buffer,"=");
 
-    if((value = strdup(PACKAGE_VERSION)) == NULL)
-    {stat = NC_ENOMEM; goto done;}
-    nclistpush(globalprovenance.properties,value);
-    value = NULL;
+    snprintf(printbuf,sizeof(printbuf),"%d",globalprovenance.version);
+    ncbytescat(buffer,printbuf);
+
+    ncbytescat(buffer,printbuf);
+
+    /* Insert the netcdf version */
+    ncbytesappend(buffer,NCPROPSSEP2);
+    ncbytescat(buffer,NCPNCLIB2);
+    ncbytescat(buffer,"=");
+    ncbytescat(buffer,PACKAGE_VERSION);
 
     /* Insert the HDF5 as underlying storage format library */
-    if((name = strdup(NCPHDF5LIB2)) == NULL)
-    {stat = NC_ENOMEM; goto done;}
-    nclistpush(globalprovenance.properties,name);
-    name = NULL;
+    ncbytesappend(buffer,NCPROPSSEP2);
+    ncbytescat(buffer,NCPHDF5LIB2);
+    ncbytescat(buffer,"=");
+    ncbytescat(buffer,PACKAGE_VERSION);
 
-    stat = NC4_hdf5get_libversion(&major,&minor,&release);
-    if(stat) goto done;
-    {
-        char sversion[64];
-        snprintf(sversion,sizeof(sversion),"%1u.%1u.%1u",major,minor,release);
-        if((value = strdup(sversion)) == NULL)
-        {stat = NC_ENOMEM; goto done;}
-    }
-    nclistpush(globalprovenance.properties,value);
-    value = NULL;
+    if((stat = NC4_hdf5get_libversion(&major,&minor,&release))) goto done;
+    snprintf(printbuf,sizeof(printbuf),"%1u.%1u.%1u",major,minor,release);
+    ncbytescat(buffer,printbuf);
 
+#ifdef NCPROPERTIES_EXTRA
     /* Add any extra fields */
-    /*Parse them into an NClist */
-    other = nclistnew();
-    if(other == NULL) {stat = NC_ENOMEM; goto done;}
-#ifdef NCPROPERTIES
-    stat = properties_parse(NCPROPERTIES_EXTRA,other);
-    if(stat) goto done;
+    p = NCPROPERTIES_EXTRA;
+    if(p[0] == NCPROPSSEP2) p++; /* If leading separator */
+    ncbytesappend(buffer,NCPROPSSEP2);
+    ncbytescat(buffer,p);
 #endif
-    /* merge into the properties list */
-    for(i=0;i<nclistlength(other);i++)
-        nclistpush(globalprovenance.properties,strdup(nclistget(other,i)));
-    nclistfreeall(other);
-    other = NULL;
-
-    /* Convert to a string and cache it */
-    if((stat = build_propstring(NCPROPS_VERSION,globalprovenance.properties,&cachedpropstring)))
-	goto done;
-    globalprovenance.ncproperty = cachedpropstring;
-    cachedpropstring = NULL;
+    ncbytesnull(buffer);
+    globalprovenance.ncproperties = ncbytesextract(buffer);
 
 done:
+    ncbytesfree(buffer);
     if(name != NULL) free(name);
     if(value != NULL) free(value);
-    if(cachedpropstring != NULL) free(cachedpropstring);
-    if(other != NULL)
-        nclistfreeall(other);
-    if(stat && globalprovenance.properties != NULL) {
-        nclistfreeall(globalprovenance.properties);
-        globalprovenance.properties = NULL;
-    }
     if(stat == NC_NOERR)
         globalpropinitialized = 1; /* avoid repeating it */
     return stat;
@@ -171,7 +144,7 @@ NC4_new_provenance(NC_FILE_INFO_T* file)
 
     LOG((5, "%s: ncid 0x%x", __func__, file->root_grp->hdr.id));
 
-    assert(file->provenance.ncproperty == NULL); /* not yet defined */
+    assert(file->provenance.ncproperties == NULL); /* not yet defined */
 
     provenance = &file->provenance;
     memset(provenance,0,sizeof(NC4_Provenance)); /* make sure */
@@ -183,8 +156,8 @@ NC4_new_provenance(NC_FILE_INFO_T* file)
     if((ncstat = NC4_hdf5get_superblock(file,&superblock))) goto done;
     provenance->superblockversion = superblock;
 
-    if(globalprovenance.ncproperty != NULL) {
-        if((provenance->ncproperty = strdup(globalprovenance.ncproperty)) == NULL)
+    if(globalprovenance.ncproperties != NULL) {
+        if((provenance->ncproperties = strdup(globalprovenance.ncproperties)) == NULL)
 	    {ncstat = NC_ENOMEM; goto done;}
     }
 
@@ -227,16 +200,8 @@ NC4_read_provenance(NC_FILE_INFO_T* file)
 
     /* Read the _NCProperties value from the file */
     if((ncstat = NC4_read_ncproperties(file,&propstring))) goto done;
-    provenance->ncproperty = propstring;
+    provenance->ncproperties = propstring;
     propstring = NULL;    
-
-#if 0
-    /* Get only the version */
-    if((ncstat=properties_getversion(propstring,&version)))
-        goto done;
-    /* save version, even if it is unknown */
-    provenance->version = version;
-#endif
 
 done:
     nullfree(propstring);
@@ -336,7 +301,7 @@ NC4_write_ncproperties(NC_FILE_INFO_T* h5)
         goto done;
 
     /* Build the property if we have legit value */
-    if(prov->ncproperty != NULL) {
+    if(prov->ncproperties != NULL) {
 	/* Build the HDF5 string type */
 	if ((atype = H5Tcopy(H5T_C_S1)) < 0)
 	    {retval = NC_EHDFERR; goto done;}
@@ -344,7 +309,7 @@ NC4_write_ncproperties(NC_FILE_INFO_T* h5)
 	    {retval = NC_EHDFERR; goto done;}
 	if(H5Tset_cset(atype, H5T_CSET_ASCII) < 0)
 	    {retval = NC_EHDFERR; goto done;}
-	len = strlen(prov->ncproperty);
+	len = strlen(prov->ncproperties);
 	if(H5Tset_size(atype, len) < 0)
 	    {retval = NC_EFILEMETA; goto done;}
 	/* Create NCPROPS attribute */
@@ -352,7 +317,7 @@ NC4_write_ncproperties(NC_FILE_INFO_T* h5)
 	    {retval = NC_EFILEMETA; goto done;}
 	if ((attid = H5Acreate(hdf5grpid, NCPROPS, atype, aspace, H5P_DEFAULT)) < 0)
 	    {retval = NC_EFILEMETA; goto done;}
-	if (H5Awrite(attid, atype, prov->ncproperty) < 0)
+	if (H5Awrite(attid, atype, prov->ncproperties) < 0)
 	    {retval = NC_EFILEMETA; goto done;}
 /* Verify */
 #if 0
@@ -399,20 +364,36 @@ done:
 void
 ncprintprovenance(NC4_Provenance* info)
 {
-    int i;
-    fprintf(stderr,"[%p] version=%d superblockversion=%d ncproperty=|%s|\n",
+    fprintf(stderr,"[%p] version=%d superblockversion=%d ncproperties=|%s|\n",
 	info,
 	info->version,
 	info->superblockversion,
-	(info->ncproperty==NULL?"":info->ncproperty));
-    for(i=0;i<nclistlength(info->properties);i+=2) {
-        char* name = nclistget(info->properties,i);
-        char* value = nclistget(info->properties,i+1);
-        fprintf(stderr,"\t[%d] name=|%s| value=|%s|\n",i,name,value);
-    }
+	(info->ncproperties==NULL?"":info->ncproperties));
 }
 
-#ifdef NCPROPERTIES
+/**
+ * @internal
+ *
+ * Clear the NCPROVENANCE object; do not free it
+ * @param prov Pointer to provenance object
+ *
+ * @return ::NC_NOERR No error.
+ * @author Dennis Heimbigner
+ */
+int
+NC4_clear_provenance(NC4_Provenance* prov)
+{
+    LOG((5, "%s", __func__));
+
+    if(prov == NULL) return NC_NOERR;
+    nullfree(prov->ncproperties);
+    memset(prov,0,sizeof(NC4_Provenance));
+    return NC_NOERR;
+}
+
+#if 0
+/* Unused functions */
+
 /**
  * @internal Parse file properties.
  *
@@ -487,8 +468,6 @@ locate(char* p, char tag)
     return next; /* not found */
 }
 
-#endif /*NCPROPERTIES*/
-
 /* Utility to transfer a string to a buffer with escaping */
 static void
 escapify(NCbytes* buffer, const char* s)
@@ -559,31 +538,6 @@ done:
     if(buffer != NULL) ncbytesfree(buffer);
     return stat;
 }
-
-/**
- * @internal
- *
- * Clear the NCPROVENANCE object; do not free it
- * @param prov Pointer to provenance object
- *
- * @return ::NC_NOERR No error.
- * @author Dennis Heimbigner
- */
-int
-NC4_clear_provenance(NC4_Provenance* prov)
-{
-    LOG((5, "%s", __func__));
-
-    if(prov == NULL) return NC_NOERR;
-    nullfree(prov->ncproperty);
-    if(prov->properties != NULL)
-        nclistfreeall(prov->properties);
-    memset(prov,0,sizeof(NC4_Provenance));
-    return NC_NOERR;
-}
-
-#if 0
-/* Unused functions */
 
 static int
 properties_getversion(const char* propstring, int* versionp)

@@ -92,15 +92,15 @@ nc4_get_att_special(NC_FILE_INFO_T* h5, const char* name,
 
     if(strcmp(name,NCPROPS)==0) {
         int len;
-        if(h5->provenance.ncproperty == NULL)
+        if(h5->provenance.ncproperties == NULL)
             return NC_ENOTATT;
         if(mem_type == NC_NAT) mem_type = NC_CHAR;
         if(mem_type != NC_CHAR)
             return NC_ECHAR;
         if(filetypep) *filetypep = NC_CHAR;
-	len = strlen(h5->provenance.ncproperty);
+	len = strlen(h5->provenance.ncproperties);
         if(lenp) *lenp = len;
-        if(data) strncpy((char*)data,h5->provenance.ncproperty,len+1);
+        if(data) strncpy((char*)data,h5->provenance.ncproperties,len+1);
     } else if(strcmp(name,ISNETCDF4ATT)==0
               || strcmp(name,SUPERBLOCKATT)==0) {
         unsigned long long iv = 0;

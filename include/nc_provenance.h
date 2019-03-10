@@ -54,21 +54,9 @@ struct NC_FILE_INFO;
 */
 
 typedef struct NC4_Provenance {
-    char* ncproperty; /* raw value of _NCProperties; NULL => does not exist */
-    int version; /* 0 => not parsed */
+    char* ncproperties; /* raw value of _NCProperties; NULL => does not exist */
+    int version; 
     int superblockversion;
-    /* Following is filled from NCPROPS attribute or from global version */
-    /* Version 1 format is:
-       "netcdflibversion=<version|hdf5libversion=<version>"
-       Version 2 format is:
-       "<mainbuildlib>=<version|<supportlib1>=<version>...|<other>=..."
-    */
-    /* The _NCProperties values are stored as an arbitrary set of (key,value) pairs */
-    /* It is assumed that the first entry is the primary library
-       used to build the file, and it is followed by other libraries
-       used in the build, and finally an arbitrary list of other
-       (key,value) pairs. */
-    NClist* properties;
 } NC4_Provenance;
 
 /* Provenance Management (moved from nc4internal.h) */
