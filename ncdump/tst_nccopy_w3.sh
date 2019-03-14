@@ -13,7 +13,7 @@ ${NCCOPY} -w nccopy_w3.nc nccopy_w3c.nc
 echo "*** Convert nccopy_w3c.nc to nccopy_w3c.cdl..."
 ${NCDUMP} -n nccopy_w nccopy_w3c.nc > nccopy_w3c.cdl
 echo "*** comparing ref_nccopy_w.cdl nccopy_w3c.cdl..."
-diff -b -w ref_nccopy_w.cdl nccopy_w3c.cdl
+diff -b -w $srcdir/ref_nccopy_w.cdl nccopy_w3c.cdl
 
 rm -f nccopy_w3c.cdl nccopy_w3.nc nccopy_w3c.nc
 
